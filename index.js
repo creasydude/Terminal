@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 //Utils
 import { callLastAPI, callCreateAPI, callMoveAPI, callUserAPI } from "./utils/apiCalls.js";
+import { logBlue, logGreen, logRed } from './utils/logColors.js';
 
 //Get Auth Tokens
 const filePath = path.join(process.cwd(), 'authTokens.json');
@@ -12,6 +13,7 @@ const authTokens = JSON.parse(data);
 
 // Guess Word Section
 
+logRed("*.*.*.*.*.*.*.*.*.*. BY CREASY .*.*.*.*.*.*.*.*.*.*")
 async function main() {
     for (const token of authTokens) {
         //Get The "User" data And Show It To The CLI
@@ -23,10 +25,10 @@ async function main() {
         const USER_TOTAL_GAMES = userResponse?.statistic?.totalGames;
         const USER_TOTAL_SCORE = userResponse?.statistic?.totalScore;
 
-        console.log(`[INFO] ACCOUNT : ${USER_EVM_ADDR} | GAMES LEFT : ${USER_GAMES_LEFT} | MULTIPLIER : ${USER_MULTIPLIER} | WINRATE : ${USER_WINRATE}% | TOTAL GAMES : ${USER_TOTAL_GAMES} | TOTAL SCORE : ${USER_TOTAL_SCORE} `)
+        logGreen(`[INFO] ACCOUNT : ${USER_EVM_ADDR} | GAMES LEFT : ${USER_GAMES_LEFT} | MULTIPLIER : ${USER_MULTIPLIER} | WINRATE : ${USER_WINRATE}% | TOTAL GAMES : ${USER_TOTAL_GAMES} | TOTAL SCORE : ${USER_TOTAL_SCORE} `)
 
         if (USER_GAMES_LEFT <= 0) {
-            console.error("[ERROR] No Games To Play, Skipping This Account...");
+            logRed("[ERROR] GAMES LEFT 0 ERROR , SKIPPING");
             continue;
         }
 
@@ -84,7 +86,6 @@ async function main() {
         //Utils
         function getAmountGuessed(lastResponse, word) {
             const entry = lastResponse.wordGuessHistory.find(item => item.word === word);
-            console.error("[ERROR] Amount Guessed Error")
             return entry ? entry.amountGuessed : null;
         }
 
@@ -96,7 +97,7 @@ async function main() {
         let userGameId = parseInt(lastResponse?.userGameId);
         let status = lastResponse?.status;
         if (words.length === 0) {
-            console.error("[ERROR] No words found in the array.");
+            logRed("[ERROR] No words found in the array.");
             process.exit(1);
         }
 
@@ -113,12 +114,12 @@ async function main() {
 
             //Main Word Detection
             while (status == "IN_PROGRESS") {
-                console.log(`[INFO] ${words.join(' | ')}`);
+                logBlue(`[INFO] ${words.join(' | ')}`);
                 const positions = getLetterPositions(words);
                 const betterPosition = getBetterPosition(positions);
 
                 if (!betterPosition) {
-                    console.error("[ERROR] No better position found.");
+                    logRed("[ERROR] No better position found.");
                     return;
                 }
 
@@ -126,13 +127,13 @@ async function main() {
 
                 try {
                     betterWord = getBetterWord(words, betterPosition);
-                    console.log(`[INFO] Chosen Word : ${betterWord}`);
+                    logGreen(`[INFO] Chosen Word : ${betterWord}`);
                     //API MOVE CALL
                     await callMoveAPI({ userGameId, guessWord: betterWord }, token)
 
                     words.splice(words.indexOf(betterWord), 1); // Remove the better word from the list
                 } catch (e) {
-                    console.error(`[ERROR] ${e.message}`);
+                    logRed(`[ERROR] ${e.message}`);
                     return;
                 }
 
@@ -141,12 +142,14 @@ async function main() {
                 userGameId = parseInt(lastResponse?.userGameId);
                 status = lastResponse?.status;
 
-                if (status == "IN_PROGRESS") {
-                    const coincidences = getAmountGuessed(lastResponse, betterWord);
-                    words = searchForMatchingWords(betterWord, words, parseInt(coincidences));
-                } else {
-                    return;
+                if (status !== "IN_PROGRESS") {
+                    wordsArray = lastResponse?.words;
+                    words = wordsArray.slice();
+                    continue
                 }
+                const coincidences = getAmountGuessed(lastResponse, betterWord);
+                words = searchForMatchingWords(betterWord, words, parseInt(coincidences));
+
             }
 
         }
